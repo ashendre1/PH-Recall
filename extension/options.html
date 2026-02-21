@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recall — Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4B9CD3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
+      <h1>Recall Settings</h1>
+      <p class="tagline">Configure your backend connection</p>
+    </div>
+
+    <form id="settingsForm" class="card">
+      <div class="field">
+        <label for="backendUrl">Backend URL</label>
+        <input
+          type="url"
+          id="backendUrl"
+          placeholder="http://localhost:3001"
+          spellcheck="false"
+          autocomplete="off"
+        />
+        <span class="hint">The address of your Recall Node.js backend server</span>
+      </div>
+
+      <button type="submit">Save Settings</button>
+      <div id="saveStatus" class="status hidden"></div>
+    </form>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

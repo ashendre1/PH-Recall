@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Recall",
+  "version": "1.0.0",
+  "description": "Scrape any webpage and store it as searchable vectors in MongoDB Atlas.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "http://localhost:3001/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Recall — Scrap Data"
+  },
+  "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
