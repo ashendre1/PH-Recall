@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -20,6 +20,7 @@ from services.gemini import (
     generate_audio_quiz_question,
     evaluate_audio_answer,
 )
+from services.elevenlabs import transcribe_audio_with_timestamps
 
 # Load environment variables
 load_dotenv()
@@ -84,15 +85,18 @@ class QuizScoreResponse(BaseModel):
 # Audio quiz scoring models
 class AudioQuizScoreRequest(BaseModel):
     question: str
-    transcribedAnswer: str
     topic: str
     paragraphIds: List[str]
+    # Audio will be sent as multipart/form-data, not JSON
 
 
 class AudioQuizScoreResponse(BaseModel):
-    score: float  # 0.0 to 1.0
-    textFeedback: str
-    audioFeedbackUrl: Optional[str] = None  # Placeholder for Eleven Labs integration
+    score: float  # 0.0 to 1.0 (articulateness score from Gemini)
+    transcribedText: str
+    isHesitant: bool
+    elevenLabsFeedback: str  # Feedback about hesitancy/fluency
+    geminiFeedback: str  # Feedback about articulateness
+    audioFeedbackUrl: Optional[str] = None  # Placeholder for Eleven Labs TTS integration
 
 
 # Startup/Shutdown events
@@ -382,56 +386,105 @@ async def score_quiz(request: QuizScoreRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-# Audio quiz scoring endpoint (placeholder structure)
+# Audio quiz scoring endpoint
 @app.post("/quiz/score-audio", response_model=AudioQuizScoreResponse)
-async def score_audio_quiz(request: AudioQuizScoreRequest):
+async def score_audio_quiz(
+    audio: UploadFile = File(...),
+    question: str = Form(...),
+    topic: str = Form(...),
+    paragraphIds: str = Form(default="[]")  # JSON string array
+):
     """
-    Score audio quiz answer using Gemini evaluation and Eleven Labs TTS (placeholder).
+    Score audio quiz answer using Eleven Labs STT and Gemini evaluation.
     
-    Flow (to be implemented):
-    1. Use Gemini to evaluate transcribed answer quality
-    2. Generate text feedback
-    3. Use Eleven Labs to convert feedback to audio
-    4. Return score, text feedback, and audio URL
+    Flow:
+    1. Use Eleven Labs Speech-to-Text to transcribe audio with word timestamps
+    2. Calculate gaps between words to detect hesitancy (gaps > 3 seconds)
+    3. Use Gemini to evaluate articulateness of the transcribed answer
+    4. Return both Eleven Labs feedback (hesitancy) and Gemini feedback (articulateness)
     """
     try:
-        if not request.transcribedAnswer or not request.transcribedAnswer.strip():
-            raise HTTPException(status_code=400, detail="Transcribed answer cannot be empty")
+        print(f"[score-audio] Processing audio answer for topic: {topic}")
         
-        print(f"[score-audio] Evaluating audio answer for topic: {request.topic}")
+        # Read audio file
+        audio_data = await audio.read()
+        if not audio_data:
+            raise HTTPException(status_code=400, detail="Audio file is empty")
         
-        # Placeholder: Use Gemini to evaluate answer
-        # TODO: Implement evaluate_audio_answer() in gemini.py
+        # Get file extension for format detection
+        # Handle webm format from MediaRecorder
+        audio_format = audio.filename.split(".")[-1] if "." in audio.filename else "webm"
+        # Map common formats
+        if audio_format in ["webm", "ogg"]:
+            audio_format = "webm"
+        elif audio_format in ["mp3", "mpeg"]:
+            audio_format = "mp3"
+        elif audio_format in ["wav", "wave"]:
+            audio_format = "wav"
+        
+        # Step 1: Transcribe audio with Eleven Labs STT (with word timestamps)
+        print("[score-audio] Transcribing audio with Eleven Labs STT...")
         try:
-            evaluation = await evaluate_audio_answer(
-                question=request.question,
-                transcribed_answer=request.transcribedAnswer,
-                topic=request.topic
+            transcription_result = await transcribe_audio_with_timestamps(
+                audio_data=audio_data,
+                audio_format=audio_format
             )
-            score = evaluation.get("score", 0.0)
-            text_feedback = evaluation.get("feedback", "Answer received. Feedback generation pending.")
+            transcribed_text = transcription_result["text"]
+            is_hesitant = transcription_result["is_hesitant"]
+            hesitancy_feedback = transcription_result["hesitancy_feedback"]
+            
+            print(f"[score-audio] Transcription complete. Text: {transcribed_text[:100]}...")
+            print(f"[score-audio] Hesitancy detected: {is_hesitant}")
+            
         except Exception as e:
-            print(f"[score-audio] Error evaluating answer: {e}")
-            # Fallback
-            score = 0.5
-            text_feedback = "Answer received. Full evaluation pending implementation."
+            print(f"[score-audio] Error transcribing audio: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to transcribe audio: {str(e)}"
+            )
         
-        # Placeholder: Eleven Labs TTS integration
-        # TODO: Implement in services/elevenlabs.py
+        if not transcribed_text or not transcribed_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="No speech detected in audio. Please try again."
+            )
+        
+        # Step 2: Evaluate articulateness with Gemini
+        print("[score-audio] Evaluating articulateness with Gemini...")
+        try:
+            gemini_evaluation = await evaluate_audio_answer(
+                question=question,
+                transcribed_answer=transcribed_text,
+                topic=topic
+            )
+            gemini_feedback = gemini_evaluation.get("feedback", "Evaluation pending.")
+            
+            print(f"[score-audio] Gemini evaluation complete.")
+            
+        except Exception as e:
+            print(f"[score-audio] Error evaluating with Gemini: {e}")
+            # Fallback
+            gemini_feedback = "Answer received. Full evaluation pending implementation."
+        
+        # Step 3: Generate audio feedback (TTS) - placeholder for future
+        audio_feedback_url = None
         try:
             from services.elevenlabs import generate_audio_feedback
-            audio_feedback_url = await generate_audio_feedback(text_feedback)
-        except ImportError:
-            audio_feedback_url = None
+            # Combine both feedbacks for audio
+            combined_feedback = f"{hesitancy_feedback}\n\n{gemini_feedback}"
+            audio_feedback_url = await generate_audio_feedback(combined_feedback)
         except Exception as e:
-            print(f"[score-audio] Error generating audio feedback: {e}")
+            print(f"[score-audio] Audio feedback generation not yet implemented: {e}")
             audio_feedback_url = None
         
-        print(f"[score-audio] Evaluation complete. Score: {score}")
+        print(f"[score-audio] Evaluation complete.")
         
         return AudioQuizScoreResponse(
-            score=score,
-            textFeedback=text_feedback,
+            score=0.0,  # Not used anymore, kept for backward compatibility
+            transcribedText=transcribed_text,
+            isHesitant=is_hesitant,
+            elevenLabsFeedback=hesitancy_feedback,
+            geminiFeedback=gemini_feedback,
             audioFeedbackUrl=audio_feedback_url
         )
         

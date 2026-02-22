@@ -351,34 +351,33 @@ async def generate_audio_quiz_question(
     paragraphs_text: str
 ) -> List[Dict[str, Any]]:
     """
-    Generate 1 elaborate/situation-based question for audio quiz.
+    Generate 1 theoretical question for audio quiz based on relevant paragraphs.
 
     Args:
         paragraphs_text: The text content from relevant paragraphs
 
     Returns:
-        List with single dictionary containing elaborate question
-        - question: str - Elaborate situation-based question
+        List with single dictionary containing theoretical question
+        - question: str - Theoretical question (couple of sentences max)
         - questionType: str - "elaborate"
         - options: List[str] - Empty list (no multiple choice)
         - correctAnswer: int - -1 (not applicable for open-ended)
     """
     model = initialize_gemini()
     
-    prompt = f"""Generate exactly 1 elaborate, situation-based quiz question based on these paragraphs:
+    prompt = f"""Generate exactly 1 theoretical quiz question based on these paragraphs:
 {paragraphs_text}
 
 The question should:
-- Be open-ended and require a detailed spoken answer
-- Present a scenario or situation that tests deep understanding
-- Encourage the student to explain concepts, apply knowledge, or analyze information
-- Be suitable for audio/voice response (not multiple choice)
-- Require at least 2-3 sentences to answer properly
+- Be theoretical and directly related to the concepts in the context
+- Be concise: maximum 2 sentences long
+- Test understanding of theoretical concepts from the content
+- Use basic english and avoid complex words
 
 Return your response as a JSON array with exactly one question in this exact format:
 [
   {{
-    "question": "Elaborate situation-based question that requires detailed explanation...",
+    "question": "Theoretical question about concepts from the paragraphs (max 2 sentences)...",
     "questionType": "elaborate",
     "options": [],
     "correctAnswer": -1
@@ -390,7 +389,9 @@ Important:
 - questionType must be "elaborate"
 - options must be an empty array []
 - correctAnswer must be -1
-- Make the question engaging and require thoughtful explanation
+- Question must be theoretical and based on the paragraphs
+- Question must be concise (1-2 sentences maximum)
+- Focus on theoretical understanding, not practical application
 
 Return ONLY the JSON array, no other text."""
 
@@ -446,7 +447,7 @@ async def evaluate_audio_answer(
     topic: str
 ) -> Dict[str, Any]:
     """
-    Evaluate an audio quiz answer using Gemini (placeholder implementation).
+    Evaluate an audio quiz answer using Gemini for articulateness assessment.
 
     Args:
         question: The elaborate question that was asked
@@ -454,11 +455,11 @@ async def evaluate_audio_answer(
         topic: The topic/context of the quiz
 
     Returns:
-        Dictionary with 'score' (0.0 to 1.0) and 'feedback' (text)
+        Dictionary with 'feedback' (text) about articulateness
     """
     model = initialize_gemini()
     
-    prompt = f"""Evaluate a student's spoken answer to an elaborate quiz question.
+    prompt = f"""Evaluate how articulate and well-expressed a student's spoken answer is to an elaborate quiz question.
 
 Topic: {topic}
 
@@ -466,20 +467,21 @@ Question: {question}
 
 Student's Answer: {transcribed_answer}
 
-Evaluate the answer and provide:
-1. A score from 0.0 to 1.0 (where 1.0 is excellent, 0.5 is partial understanding, 0.0 is incorrect/missing key points)
-2. Constructive feedback (2-3 sentences) explaining what was good and what could be improved
+Provide constructive feedback (2-3 sentences) specifically about articulation, clarity, and expression:
+   - Comment on clarity of expression
+   - Comment on structure and organization
+   - Comment on how well the ideas are communicated
+   - Suggest improvements for better articulation
 
 Return your response as JSON in this exact format:
 {{
-  "score": 0.85,
-  "feedback": "Your answer demonstrates good understanding of the concept. You correctly identified the key points. However, you could have provided more detail about the specific mechanism involved."
+  "feedback": "Your answer is quite articulate and well-structured. You expressed your ideas clearly and organized your thoughts logically. To improve further, try to use more specific examples and connect your ideas with transitional phrases."
 }}
 
 Important:
-- Score must be a float between 0.0 and 1.0
+- Focus ONLY on articulateness, clarity, and expression (not correctness)
 - Feedback should be constructive and educational
-- Consider completeness, accuracy, and depth of understanding
+- Consider clarity, structure, vocabulary, and communication effectiveness
 
 Return ONLY the JSON object, no other text."""
 
@@ -506,15 +508,10 @@ Return ONLY the JSON object, no other text."""
         # Validate structure
         if not isinstance(evaluation, dict):
             raise ValueError("Gemini response is not a dictionary")
-        if "score" not in evaluation or "feedback" not in evaluation:
-            raise ValueError("Evaluation missing required fields: score or feedback")
-        
-        score = evaluation["score"]
-        if not isinstance(score, (int, float)) or score < 0.0 or score > 1.0:
-            raise ValueError("Score must be a number between 0.0 and 1.0")
+        if "feedback" not in evaluation:
+            raise ValueError("Evaluation missing required field: feedback")
         
         return {
-            "score": float(score),
             "feedback": str(evaluation["feedback"])
         }
         
