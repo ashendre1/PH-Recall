@@ -12,11 +12,12 @@ export default function AudioQuizPage() {
   const [question, setQuestion] = useState<QuizQuestion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
-  const [transcript, setTranscript] = useState("");
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scoreResult, setScoreResult] = useState<AudioQuizScoreResponse | null>(null);
-  const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
   useEffect(() => {
@@ -34,10 +35,10 @@ export default function AudioQuizPage() {
     }
 
     return () => {
-      // Cleanup: stop recognition if active
-      if (recognitionRef.current) {
+      // Cleanup: stop recording if active
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         try {
-          recognitionRef.current.stop();
+          mediaRecorderRef.current.stop();
         } catch (e) {
           // Ignore errors during cleanup
         }
@@ -75,63 +76,46 @@ export default function AudioQuizPage() {
     synthRef.current.speak(utterance);
   }, [question]);
 
-  const startRecording = useCallback(() => {
-    if (typeof window === "undefined") return;
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      audioChunksRef.current = [];
 
-    if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in your browser. Please use Chrome or Edge.");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
-    recognition.onresult = (event: any) => {
-      let interimTranscript = "";
-      let finalTranscript = "";
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript + " ";
-        } else {
-          interimTranscript += transcript;
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
         }
-      }
+      };
 
-      setTranscript((prev) => finalTranscript || interimTranscript);
-    };
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        setAudioBlob(audioBlob);
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach((track) => track.stop());
+      };
 
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error:", event.error);
-      setIsRecording(false);
-      if (event.error === "no-speech") {
-        alert("No speech detected. Please try again.");
-      }
-    };
-
-    recognition.onend = () => {
-      setIsRecording(false);
-    };
-
-    recognition.start();
-    setIsRecording(true);
-    recognitionRef.current = recognition;
+      mediaRecorder.start();
+      setIsRecording(true);
+      mediaRecorderRef.current = mediaRecorder;
+    } catch (error) {
+      console.error("Error accessing microphone:", error);
+      alert("Could not access microphone. Please check permissions and try again.");
+    }
   }, []);
 
   const stopRecording = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
   }, []);
 
   const handleSubmit = async () => {
-    if (!question || !transcript.trim()) {
+    if (!question || !audioBlob) {
       alert("Please record an answer before submitting.");
       return;
     }
@@ -139,8 +123,8 @@ export default function AudioQuizPage() {
     setIsSubmitting(true);
     try {
       const result = await scoreAudioQuiz(
+        audioBlob,
         question.question,
-        transcript,
         topic,
         question.paragraphIds || []
       );
@@ -158,8 +142,9 @@ export default function AudioQuizPage() {
   };
 
   const handleTryAgain = () => {
-    setTranscript("");
+    setAudioBlob(null);
     setScoreResult(null);
+    audioChunksRef.current = [];
     if (topic) {
       loadQuiz(topic);
     }
@@ -167,18 +152,29 @@ export default function AudioQuizPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--beige)" }}>
+      <div 
+        className="min-h-screen flex items-center justify-center" 
+        style={{ 
+          background: "radial-gradient(circle at center, #FFFBF0 0%, #FAF0D0 40%, #F0E4B8 70%, #E0D0A0 100%)",
+          minHeight: "100vh"
+        }}
+      >
         <div className="text-center">
-          <p style={{ color: "var(--brown)" }}>Loading quiz...</p>
+          <p style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>Loading quiz...</p>
         </div>
       </div>
     );
   }
 
   if (scoreResult) {
-    const percentage = Math.round(scoreResult.score * 100);
     return (
-      <div className="min-h-screen" style={{ backgroundColor: "var(--beige)" }}>
+      <div 
+        className="min-h-screen" 
+        style={{ 
+          background: "radial-gradient(circle at center, #FFFBF0 0%, #FAF0D0 40%, #F0E4B8 70%, #E0D0A0 100%)",
+          minHeight: "100vh"
+        }}
+      >
         <div className="max-w-3xl mx-auto px-4 py-12">
           <div
             className="rounded-3xl shadow-xl p-8 md:p-12 text-center"
@@ -186,38 +182,49 @@ export default function AudioQuizPage() {
           >
             <div className="flex justify-center mb-6">
               <Image
-                src="/Recall app logo.png"
+                src="/logo_3.png"
                 alt="Recall"
                 width={100}
                 height={100}
                 className="inline-block"
               />
             </div>
-            <h1 className="mb-4 text-2xl font-semibold" style={{ color: "var(--brown)" }}>
-              Quiz Complete! 🎉
+            <h1 className="mb-4 text-2xl font-semibold" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
+              Quiz Complete!
             </h1>
             <div className="mb-8">
+              {/* Transcribed Text */}
               <div
-                className="text-6xl mb-4 font-bold"
-                style={{ color: "var(--peach)" }}
-              >
-                {percentage}%
-              </div>
-              <p className="text-xl mb-4" style={{ color: "var(--brown)" }}>
-                {percentage >= 80
-                  ? "Excellent answer! Well done!"
-                  : percentage >= 60
-                  ? "Good job! Keep practicing!"
-                  : "Good effort! Review the topic and try again!"}
-              </p>
-              <div
-                className="p-4 rounded-xl text-left mt-4"
+                className="p-4 rounded-xl text-left mt-4 mb-4"
                 style={{ backgroundColor: "var(--beige)" }}
               >
-                <p className="text-sm font-semibold mb-2" style={{ color: "var(--brown)" }}>
-                  Feedback:
+                <p className="text-sm font-semibold mb-2" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
+                  Your Answer:
                 </p>
-                <p style={{ color: "var(--brown)" }}>{scoreResult.textFeedback}</p>
+                <p style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>{scoreResult.transcribedText}</p>
+              </div>
+
+              {/* Eleven Labs Feedback */}
+              <div
+                className="p-4 rounded-xl text-left mb-4"
+                style={{ backgroundColor: scoreResult.isHesitant ? "#ffe0d0" : "#d4edda" }}
+              >
+                <p className="text-sm font-semibold mb-2" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
+                  <span>Communication Flow</span>
+                  <span className="text-xs font-normal ml-2 opacity-70">(Eleven Labs)</span>
+                </p>
+                <p style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>{scoreResult.elevenLabsFeedback}</p>
+              </div>
+
+              {/* Gemini Feedback */}
+              <div
+                className="p-4 rounded-xl text-left mb-4"
+                style={{ backgroundColor: "var(--beige)" }}
+              >
+                <p className="text-sm font-semibold mb-2" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
+                  Articulateness Feedback (Gemini):
+                </p>
+                <p style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>{scoreResult.geminiFeedback}</p>
               </div>
               {scoreResult.audioFeedbackUrl && (
                 <div className="mt-4">
@@ -232,9 +239,9 @@ export default function AudioQuizPage() {
                 style={{
                   backgroundColor: "var(--peach)",
                   color: "#ffffff",
+                  fontFamily: "var(--font-lora), serif",
                 }}
               >
-                <span>🔄</span>
                 Try Again
               </button>
               <button
@@ -243,9 +250,9 @@ export default function AudioQuizPage() {
                 style={{
                   backgroundColor: "var(--carolina-blue)",
                   color: "#ffffff",
+                  fontFamily: "var(--font-lora), serif",
                 }}
               >
-                <span>←</span>
                 Back to Home
               </button>
             </div>
@@ -257,9 +264,15 @@ export default function AudioQuizPage() {
 
   if (!question) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--beige)" }}>
+      <div 
+        className="min-h-screen flex items-center justify-center" 
+        style={{ 
+          background: "radial-gradient(circle at center, #FFFBF0 0%, #FAF0D0 40%, #F0E4B8 70%, #E0D0A0 100%)",
+          minHeight: "100vh"
+        }}
+      >
         <div className="text-center">
-          <p style={{ color: "var(--brown)" }}>No question available.</p>
+          <p style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>No question available.</p>
         </div>
       </div>
     );
@@ -276,24 +289,24 @@ export default function AudioQuizPage() {
             style={{
               backgroundColor: "var(--peach)",
               color: "#ffffff",
+              fontFamily: "var(--font-lora), serif",
             }}
           >
-            <span>←</span>
             Home
           </button>
           <div className="flex items-center gap-3">
             <Image
-              src="/Recall app logo.png"
+              src="/logo_3.png"
               alt="Recall"
               width={50}
               height={50}
               className="inline-block"
             />
             <div>
-              <div className="text-sm" style={{ color: "var(--brown)" }}>
+              <div className="text-sm" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
                 Audio Quiz Mode
               </div>
-              <div className="font-semibold" style={{ color: "var(--peach)" }}>
+              <div className="font-semibold" style={{ color: "var(--peach)", fontFamily: "var(--font-lora), serif" }}>
                 {topic}
               </div>
             </div>
@@ -305,7 +318,7 @@ export default function AudioQuizPage() {
           className="rounded-3xl shadow-xl p-8 md:p-12"
           style={{ backgroundColor: "#ffffff" }}
         >
-          <h2 className="mb-6 text-xl font-semibold text-center" style={{ color: "var(--brown)" }}>
+          <h2 className="mb-6 text-xl font-semibold text-center" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
             {question.question}
           </h2>
 
@@ -318,9 +331,9 @@ export default function AudioQuizPage() {
               style={{
                 backgroundColor: "var(--carolina-blue)",
                 color: "#ffffff",
+                fontFamily: "var(--font-lora), serif",
               }}
             >
-              <span className={isPlaying ? "animate-pulse" : ""}>🔊</span>
               {isPlaying ? "Playing..." : "Listen to Question"}
             </button>
           </div>
@@ -337,35 +350,36 @@ export default function AudioQuizPage() {
               {isRecording ? (
                 <>
                   <div className="animate-pulse mb-4 text-5xl">🎤</div>
-                  <p style={{ color: "var(--brown)" }}>Recording... Speak your answer</p>
+                  <p style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>Recording... Speak your answer</p>
                 </>
-              ) : transcript ? (
+              ) : audioBlob ? (
                 <>
                   <div className="mb-4 text-5xl">✓</div>
-                  <p className="text-center" style={{ color: "var(--brown)" }}>
-                    {transcript}
+                  <p style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
+                    Audio recorded ({Math.round(audioBlob.size / 1024)} KB)
                   </p>
+                  <audio src={URL.createObjectURL(audioBlob)} controls className="mt-2" />
                 </>
               ) : (
                 <>
                   <div className="mb-4 text-5xl">🎤</div>
-                  <p style={{ color: "var(--brown)" }}>Click the button below to record your answer</p>
+                  <p style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>Click the button below to record your answer</p>
                 </>
               )}
             </div>
 
             {/* Control Buttons */}
             <div className="flex flex-col gap-4">
-              {!transcript && !isRecording && (
+              {!audioBlob && !isRecording && (
                 <button
                   onClick={startRecording}
                   className="w-full py-4 px-6 rounded-xl transition-all hover:scale-105 flex items-center justify-center gap-2 font-medium"
                   style={{
                     backgroundColor: "var(--peach)",
                     color: "#ffffff",
+                    fontFamily: "var(--font-lora), serif",
                   }}
                 >
-                  <span>🎤</span>
                   Start Recording
                 </button>
               )}
@@ -377,31 +391,45 @@ export default function AudioQuizPage() {
                   style={{
                     backgroundColor: "var(--brown)",
                     color: "#ffffff",
+                    fontFamily: "var(--font-lora), serif",
                   }}
                 >
-                  <span>⏹</span>
                   Stop Recording
                 </button>
               )}
 
-              {transcript && !isRecording && (
-                <button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                  className="w-full py-4 px-6 rounded-xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
-                  style={{
-                    backgroundColor: "var(--carolina-blue)",
-                    color: "#ffffff",
-                  }}
-                >
-                  {isSubmitting ? "Submitting..." : "Submit Answer"}
-                </button>
+              {audioBlob && !isRecording && (
+                <>
+                  <button
+                    onClick={handleTryAgain}
+                    className="w-full py-3 px-6 rounded-xl transition-all hover:scale-105 flex items-center justify-center gap-2 font-medium"
+                    style={{
+                      backgroundColor: "var(--peach)",
+                      color: "#ffffff",
+                      fontFamily: "var(--font-lora), serif",
+                    }}
+                  >
+                    Record Again
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="w-full py-4 px-6 rounded-xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+                    style={{
+                      backgroundColor: "var(--carolina-blue)",
+                      color: "#ffffff",
+                      fontFamily: "var(--font-lora), serif",
+                    }}
+                  >
+                    {isSubmitting ? "Submitting..." : "Submit Answer"}
+                  </button>
+                </>
               )}
             </div>
           </div>
 
           {/* Browser Support Notice */}
-          <div className="mt-6 text-center text-sm" style={{ color: "var(--brown)" }}>
+          <div className="mt-6 text-center text-sm" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
             <p>💡 Audio features work best in Chrome, Edge, or Safari</p>
           </div>
         </div>

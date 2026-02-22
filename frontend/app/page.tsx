@@ -24,38 +24,56 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "var(--beige)" }}>
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-6">
-            <Image
-              src="/Recall app logo.png"
-              alt="Recall"
-              width={120}
-              height={120}
-              className="inline-block"
-            />
-          </div>
-          <h1 className="mb-4 text-3xl sm:text-4xl font-semibold" style={{ color: "var(--brown)" }}>
-            Recall - Fun Learning Quiz
+    <div 
+      className="min-h-screen" 
+      style={{ 
+        background: "radial-gradient(circle at center, #FFFBF0 0%, #FAF0D0 40%, #F0E4B8 70%, #E0D0A0 100%)",
+        minHeight: "100vh"
+      }}
+    >
+      {/* Header with logo and title on same line */}
+      <div className="relative flex items-center justify-between px-4 md:px-8 pt-0 pb-0">
+        {/* Logo on left */}
+        <div className="flex-shrink-0 -ml-14 md:-ml-18 -mt-2 md:-mt-4">
+          <Image
+            src="/logo_3.png"
+            alt="Recall"
+            width={360}
+            height={360}
+            className="inline-block"
+          />
+        </div>
+        
+        {/* Heading centered */}
+        <div className="absolute left-1/2 transform -translate-x-1/2">
+          <h1 className="text-5xl md:text-6xl lg:text-7xl font-semibold" style={{ color: "var(--brown)", textShadow: "2px 2px 4px rgba(0, 0, 0, 0.1), 4px 4px 8px rgba(0, 0, 0, 0.08)" }}>
+            Recall
           </h1>
-          <p className="text-lg" style={{ color: "var(--brown)" }}>
-            Test your knowledge in a fun and interactive way!
+        </div>
+        
+        {/* Spacer to balance layout */}
+        <div className="flex-shrink-0 w-[360px]"></div>
+      </div>
+      
+      <div className="max-w-4xl mx-auto px-4 pt-0 pb-8">
+        {/* Subtitle */}
+        <div className="text-center mb-4">
+          <p className="text-xl md:text-2xl lg:text-3xl" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif", fontWeight: 400 }}>
+            Turn what you read into what you remember.
           </p>
         </div>
 
         {/* Main Form Card */}
         <div
-          className="rounded-3xl shadow-xl p-8 md:p-12"
+          className="rounded-3xl shadow-xl p-6 md:p-8"
           style={{ backgroundColor: "#ffffff" }}
         >
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label
                 htmlFor="topic"
                 className="block mb-3 font-medium"
-                style={{ color: "var(--brown)" }}
+                style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}
               >
                 What topic would you like to be quizzed on?
               </label>
@@ -63,13 +81,14 @@ export default function Home() {
                 id="topic"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder="Enter your topic or question here... (e.g., 'World War 2', 'Photosynthesis', 'Spanish vocabulary')"
+                placeholder="Enter your topic or question here... (from the pages you web-scraped using our tool!)"
                 rows={4}
                 className="w-full px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                 style={{
                   borderColor: "var(--carolina-blue)",
                   backgroundColor: "#ffffff",
                   color: "var(--brown)",
+                  fontFamily: "var(--font-lora), serif",
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = "var(--peach)";
@@ -91,9 +110,9 @@ export default function Home() {
                 style={{
                   backgroundColor: "var(--carolina-blue)",
                   color: "#ffffff",
+                  fontFamily: "var(--font-lora), serif",
                 }}
               >
-                <span>✨</span>
                 Try It - Text Mode
               </button>
 
@@ -107,22 +126,21 @@ export default function Home() {
                   color: "#ffffff",
                 }}
               >
-                <span>✨</span>
                 Try It - Audio Mode
               </button>
             </div>
           </form>
 
           {/* Info Cards */}
-          <div className="grid md:grid-cols-2 gap-4 mt-8">
+          <div className="grid md:grid-cols-2 gap-4 mt-4">
             <div
               className="p-4 rounded-xl"
               style={{ backgroundColor: "var(--beige)" }}
             >
-              <h3 style={{ color: "var(--carolina-blue)" }} className="mb-2 font-semibold">
+              <h3 style={{ color: "var(--carolina-blue)", fontFamily: "var(--font-lora), serif", fontSize: "16px" }} className="mb-2 font-semibold">
                 📝 Text Mode
               </h3>
-              <p className="text-sm" style={{ color: "var(--brown)" }}>
+              <p className="text-sm" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
                 Read questions and type your answers. Perfect for detailed responses.
               </p>
             </div>
@@ -130,10 +148,10 @@ export default function Home() {
               className="p-4 rounded-xl"
               style={{ backgroundColor: "var(--beige)" }}
             >
-              <h3 style={{ color: "var(--peach)" }} className="mb-2 font-semibold">
+              <h3 style={{ color: "var(--peach)", fontFamily: "var(--font-lora), serif", fontSize: "16px" }} className="mb-2 font-semibold">
                 🎤 Audio Mode
               </h3>
-              <p className="text-sm" style={{ color: "var(--brown)" }}>
+              <p className="text-sm" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
                 Listen to questions and speak your answers. Great for on-the-go learning!
               </p>
             </div>
@@ -141,9 +159,9 @@ export default function Home() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-8">
-          <p className="text-sm" style={{ color: "var(--brown)" }}>
-            Make learning fun and memorable! 🎉
+        <div className="text-center mt-4">
+          <p className="text-sm" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
+            Make learning fun and memorable!
           </p>
         </div>
       </div>

@@ -88,9 +88,15 @@ export default function TextQuizPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--beige)" }}>
+      <div 
+        className="min-h-screen flex items-center justify-center" 
+        style={{ 
+          background: "radial-gradient(circle at center, #FFFBF0 0%, #FAF0D0 40%, #F0E4B8 70%, #E0D0A0 100%)",
+          minHeight: "100vh"
+        }}
+      >
         <div className="text-center">
-          <p style={{ color: "var(--brown)" }}>Loading quiz...</p>
+          <p style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>Loading quiz...</p>
         </div>
       </div>
     );
@@ -99,7 +105,13 @@ export default function TextQuizPage() {
   if (scoreResult) {
     const percentage = Math.round((scoreResult.totalScore / scoreResult.totalQuestions) * 100);
     return (
-      <div className="min-h-screen" style={{ backgroundColor: "var(--beige)" }}>
+      <div 
+        className="min-h-screen" 
+        style={{ 
+          background: "radial-gradient(circle at center, #FFFBF0 0%, #FAF0D0 40%, #F0E4B8 70%, #E0D0A0 100%)",
+          minHeight: "100vh"
+        }}
+      >
         <div className="max-w-3xl mx-auto px-4 py-12">
           <div
             className="rounded-3xl shadow-xl p-8 md:p-12 text-center"
@@ -107,15 +119,15 @@ export default function TextQuizPage() {
           >
             <div className="flex justify-center mb-6">
               <Image
-                src="/Recall app logo.png"
+                src="/logo_3.png"
                 alt="Recall"
                 width={100}
                 height={100}
                 className="inline-block"
               />
             </div>
-            <h1 className="mb-4 text-2xl font-semibold" style={{ color: "var(--brown)" }}>
-              Quiz Complete! 🎉
+            <h1 className="mb-4 text-2xl font-semibold" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
+              Quiz Complete!
             </h1>
             <div className="mb-8">
               <div
@@ -124,7 +136,7 @@ export default function TextQuizPage() {
               >
                 {scoreResult.totalScore}/{scoreResult.totalQuestions}
               </div>
-              <p className="text-xl" style={{ color: "var(--brown)" }}>
+              <p className="text-xl" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
                 {percentage === 100
                   ? "Perfect score! Amazing work!"
                   : percentage >= 60
@@ -139,9 +151,9 @@ export default function TextQuizPage() {
                 style={{
                   backgroundColor: "var(--carolina-blue)",
                   color: "#ffffff",
+                  fontFamily: "var(--font-lora), serif",
                 }}
               >
-                <span>🔄</span>
                 Try Again
               </button>
               <button
@@ -150,9 +162,9 @@ export default function TextQuizPage() {
                 style={{
                   backgroundColor: "var(--peach)",
                   color: "#ffffff",
+                  fontFamily: "var(--font-lora), serif",
                 }}
               >
-                <span>←</span>
                 Back to Home
               </button>
             </div>
@@ -176,24 +188,24 @@ export default function TextQuizPage() {
             style={{
               backgroundColor: "var(--carolina-blue)",
               color: "#ffffff",
+              fontFamily: "var(--font-lora), serif",
             }}
           >
-            <span>←</span>
             Home
           </button>
           <div className="flex items-center gap-3">
             <Image
-              src="/Recall app logo.png"
+              src="/logo_3.png"
               alt="Recall"
               width={50}
               height={50}
               className="inline-block"
             />
             <div>
-              <div className="text-sm" style={{ color: "var(--brown)" }}>
+              <div className="text-sm" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
                 Text Quiz Mode
               </div>
-              <div className="font-semibold" style={{ color: "var(--carolina-blue)" }}>
+              <div className="font-semibold" style={{ color: "var(--carolina-blue)", fontFamily: "var(--font-lora), serif" }}>
                 {topic}
               </div>
             </div>
@@ -203,10 +215,10 @@ export default function TextQuizPage() {
         {/* Progress */}
         <div className="mb-6">
           <div className="flex justify-between mb-2">
-            <span className="text-sm" style={{ color: "var(--brown)" }}>
+            <span className="text-sm" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
               Question {currentQuestion + 1} of {questions.length}
             </span>
-            <span className="text-sm" style={{ color: "var(--brown)" }}>
+            <span className="text-sm" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
               {Object.keys(answers).length} answered
             </span>
           </div>
@@ -238,7 +250,7 @@ export default function TextQuizPage() {
                 {currentQ.questionType === "mcq" ? "Multiple Choice" : "True/False"}
               </span>
             </div>
-            <h2 className="mb-6 text-xl font-semibold" style={{ color: "var(--brown)" }}>
+            <h2 className="mb-6 text-xl font-semibold" style={{ color: "var(--brown)", fontFamily: "var(--font-lora), serif" }}>
               {currentQ.question}
             </h2>
 
@@ -254,6 +266,7 @@ export default function TextQuizPage() {
                       backgroundColor: isSelected ? "var(--carolina-blue)" : "#ffffff",
                       color: isSelected ? "#ffffff" : "var(--brown)",
                       borderColor: isSelected ? "var(--carolina-blue)" : "var(--carolina-blue)",
+                      fontFamily: "var(--font-lora), serif",
                     }}
                   >
                     {String.fromCharCode(65 + index)}. {option}
@@ -270,6 +283,7 @@ export default function TextQuizPage() {
                 style={{
                   backgroundColor: "var(--peach)",
                   color: "#ffffff",
+                  fontFamily: "var(--font-lora), serif",
                 }}
               >
                 {currentQuestion < questions.length - 1 ? "Next Question" : "Submit Quiz"}

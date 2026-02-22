@@ -32,7 +32,10 @@ export type QuizScoreResponse = {
 };
 
 export type AudioQuizScoreResponse = {
-  score: number; // 0.0 to 1.0
-  textFeedback: string;
+  score: number; // 0.0 to 1.0 (articulateness score from Gemini)
+  transcribedText: string;
+  isHesitant: boolean;
+  elevenLabsFeedback: string; // Feedback about hesitancy/fluency
+  geminiFeedback: string; // Feedback about articulateness
   audioFeedbackUrl?: string;
 };

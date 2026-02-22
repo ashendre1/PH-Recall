@@ -148,26 +148,24 @@ export async function scoreQuiz(
 }
 
 /**
- * Score audio quiz answer (placeholder structure for Eleven Labs + Gemini integration)
+ * Score audio quiz answer using Eleven Labs STT and Gemini evaluation
  */
 export async function scoreAudioQuiz(
+  audioBlob: Blob,
   question: string,
-  transcribedAnswer: string,
   topic: string,
   paragraphIds: string[] = []
 ): Promise<AudioQuizScoreResponse> {
   try {
+    const formData = new FormData();
+    formData.append("audio", audioBlob, "audio.webm"); // or appropriate format
+    formData.append("question", question);
+    formData.append("topic", topic);
+    formData.append("paragraphIds", JSON.stringify(paragraphIds));
+
     const response = await fetch(`${API_URL}/quiz/score-audio`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        question,
-        transcribedAnswer,
-        topic,
-        paragraphIds,
-      }),
+      body: formData, // Don't set Content-Type header - browser will set it with boundary
     });
 
     if (!response.ok) {
