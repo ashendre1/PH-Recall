@@ -1,17 +1,16 @@
-"use client";
-
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { AppBrand } from "@/components/AppBrand";
-import Image from "next/image";
+import { useNavigate } from "react-router";
+import { BrainLogo } from "../components/brain-logo";
+import { Sparkles } from "lucide-react";
 
-export default function Home() {
+export function Main() {
   const [topic, setTopic] = useState("");
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (topic.trim()) {
+      // Store the topic in sessionStorage to access it in quiz pages
       sessionStorage.setItem("quizTopic", topic);
     }
   };
@@ -19,7 +18,7 @@ export default function Home() {
   const handleTryIt = (mode: "text" | "audio") => {
     if (topic.trim()) {
       sessionStorage.setItem("quizTopic", topic);
-      router.push(`/${mode}-quiz`);
+      navigate(`/${mode}-quiz`);
     }
   };
 
@@ -29,15 +28,9 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-12">
           <div className="flex justify-center mb-6">
-            <Image
-              src="/Recall app logo.png"
-              alt="Recall"
-              width={120}
-              height={120}
-              className="inline-block"
-            />
+            <BrainLogo size={120} />
           </div>
-          <h1 className="mb-4 text-3xl sm:text-4xl font-semibold" style={{ color: "var(--brown)" }}>
+          <h1 className="mb-4" style={{ color: "var(--brown)" }}>
             Recall - Fun Learning Quiz
           </h1>
           <p className="text-lg" style={{ color: "var(--brown)" }}>
@@ -54,7 +47,7 @@ export default function Home() {
             <div>
               <label
                 htmlFor="topic"
-                className="block mb-3 font-medium"
+                className="block mb-3"
                 style={{ color: "var(--brown)" }}
               >
                 What topic would you like to be quizzed on?
@@ -72,12 +65,12 @@ export default function Home() {
                   color: "var(--brown)",
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "var(--peach)";
-                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(255, 176, 136, 0.2)";
+                  e.target.style.borderColor = "var(--peach)";
+                  e.target.style.boxShadow = "0 0 0 3px rgba(255, 176, 136, 0.2)";
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "var(--carolina-blue)";
-                  e.currentTarget.style.boxShadow = "none";
+                  e.target.style.borderColor = "var(--carolina-blue)";
+                  e.target.style.boxShadow = "none";
                 }}
               />
             </div>
@@ -87,13 +80,13 @@ export default function Home() {
                 type="button"
                 onClick={() => handleTryIt("text")}
                 disabled={!topic.trim()}
-                className="flex-1 py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 font-medium"
+                className="flex-1 py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
                 style={{
                   backgroundColor: "var(--carolina-blue)",
                   color: "#ffffff",
                 }}
               >
-                <span>✨</span>
+                <Sparkles size={20} />
                 Try It - Text Mode
               </button>
 
@@ -101,13 +94,13 @@ export default function Home() {
                 type="button"
                 onClick={() => handleTryIt("audio")}
                 disabled={!topic.trim()}
-                className="flex-1 py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 font-medium"
+                className="flex-1 py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
                 style={{
                   backgroundColor: "var(--peach)",
                   color: "#ffffff",
                 }}
               >
-                <span>✨</span>
+                <Sparkles size={20} />
                 Try It - Audio Mode
               </button>
             </div>
@@ -119,7 +112,7 @@ export default function Home() {
               className="p-4 rounded-xl"
               style={{ backgroundColor: "var(--beige)" }}
             >
-              <h3 style={{ color: "var(--carolina-blue)" }} className="mb-2 font-semibold">
+              <h3 style={{ color: "var(--carolina-blue)" }} className="mb-2">
                 📝 Text Mode
               </h3>
               <p className="text-sm" style={{ color: "var(--brown)" }}>
@@ -130,7 +123,7 @@ export default function Home() {
               className="p-4 rounded-xl"
               style={{ backgroundColor: "var(--beige)" }}
             >
-              <h3 style={{ color: "var(--peach)" }} className="mb-2 font-semibold">
+              <h3 style={{ color: "var(--peach)" }} className="mb-2">
                 🎤 Audio Mode
               </h3>
               <p className="text-sm" style={{ color: "var(--brown)" }}>

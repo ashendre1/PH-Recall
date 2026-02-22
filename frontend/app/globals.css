@@ -3,6 +3,12 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  
+  /* Reference design colors */
+  --carolina-blue: #56A0D3;
+  --peach: #FFB088;
+  --beige: #F5F5DC;
+  --brown: #6B4423;
 }
 
 @theme inline {
@@ -10,6 +16,12 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  
+  /* Reference design colors */
+  --color-carolina-blue: var(--carolina-blue);
+  --color-peach: var(--peach);
+  --color-beige: var(--beige);
+  --color-brown: var(--brown);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -33,4 +45,18 @@ body {
   --radius-xl: 1.25rem;
   --radius-2xl: 1.5rem;
   --radius-3xl: 1.75rem;
+}
+
+/* Block sections styling (from reference design) */
+.block-section {
+  background-color: #ffffff;
+  border-radius: 1.5rem; /* rounded-3xl */
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 10px 10px -5px rgb(0 0 0 / 0.04); /* shadow-xl */
+  padding: 2rem; /* p-8 */
+}
+
+@media (min-width: 768px) {
+  .block-section {
+    padding: 3rem; /* md:p-12 */
+  }
 }

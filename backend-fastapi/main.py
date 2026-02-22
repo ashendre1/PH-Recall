@@ -13,7 +13,13 @@ from pydantic import BaseModel
 from services.mongo import connect_db, get_db, close_db
 from services.embedding import get_embedding
 from services.similarity import find_top_paragraphs
-from services.gemini import generate_quiz_questions
+from services.gemini import (
+    generate_quiz_questions,
+    generate_quiz_feedback,
+    generate_text_quiz_questions,
+    generate_audio_quiz_question,
+    evaluate_audio_answer,
+)
 
 # Load environment variables
 load_dotenv()
@@ -33,12 +39,15 @@ app.add_middleware(
 # Request/Response models
 class QuizGenerateRequest(BaseModel):
     topic: str
+    quizType: str = "text"  # "text" or "audio"
     numQuestions: Optional[int] = 5
 
 
 class QuizQuestion(BaseModel):
     question: str
-    idealAnswer: str
+    questionType: str  # "mcq", "true_false", or "elaborate"
+    options: List[str]  # 4 options for MCQ, 2 for True/False, empty for elaborate
+    correctAnswer: int  # Index of correct option (0-3 for MCQ, 0-1 for True/False, -1 for elaborate)
     paragraphIds: List[str]
 
 
@@ -46,6 +55,44 @@ class QuizGenerateResponse(BaseModel):
     questions: List[QuizQuestion]
     topic: str
     paragraphsUsed: List[Dict[str, Any]]
+
+
+class QuizAnswerItem(BaseModel):
+    questionId: str
+    question: str
+    options: List[str]
+    correctAnswer: int
+    selectedAnswer: int
+
+
+class QuizScoreRequest(BaseModel):
+    answers: List[QuizAnswerItem]
+
+
+class QuizScoreResult(BaseModel):
+    questionId: str
+    score: int  # 1 or 0
+    feedback: str
+
+
+class QuizScoreResponse(BaseModel):
+    results: List[QuizScoreResult]
+    totalScore: int
+    totalQuestions: int
+
+
+# Audio quiz scoring models
+class AudioQuizScoreRequest(BaseModel):
+    question: str
+    transcribedAnswer: str
+    topic: str
+    paragraphIds: List[str]
+
+
+class AudioQuizScoreResponse(BaseModel):
+    score: float  # 0.0 to 1.0
+    textFeedback: str
+    audioFeedbackUrl: Optional[str] = None  # Placeholder for Eleven Labs integration
 
 
 # Startup/Shutdown events
@@ -92,12 +139,21 @@ async def generate_quiz(request: QuizGenerateRequest):
         if not topic:
             raise HTTPException(status_code=400, detail="Topic cannot be empty")
         
-        num_questions = request.numQuestions or 5
-        if num_questions < 1 or num_questions > 20:
+        quiz_type = request.quizType or "text"
+        if quiz_type not in ["text", "audio"]:
             raise HTTPException(
                 status_code=400,
-                detail="numQuestions must be between 1 and 20"
+                detail="quizType must be 'text' or 'audio'"
             )
+        
+        num_questions = request.numQuestions or 5
+        if quiz_type == "text" and (num_questions < 1 or num_questions > 20):
+            raise HTTPException(
+                status_code=400,
+                detail="numQuestions must be between 1 and 20 for text quiz"
+            )
+        if quiz_type == "audio":
+            num_questions = 1  # Audio quiz always has 1 question
 
         print(f"[quiz] Generating quiz for topic: {topic}")
 
@@ -203,27 +259,36 @@ async def generate_quiz(request: QuizGenerateRequest):
             for para in top_paragraphs
         ]
 
-        # 6. Call Gemini to generate questions
-        print(f"[quiz] Generating {num_questions} questions with Gemini...")
-        gemini_questions = await generate_quiz_questions(paragraphs_text, num_questions)
+        # 6. Call Gemini to generate questions based on quiz type
+        if quiz_type == "text":
+            print(f"[quiz] Generating {num_questions} text quiz questions (3 MCQ + 2 True/False) with Gemini...")
+            gemini_questions = await generate_text_quiz_questions(paragraphs_text)
+        else:  # audio
+            print(f"[quiz] Generating 1 audio quiz question (elaborate) with Gemini...")
+            gemini_questions = await generate_audio_quiz_question(paragraphs_text)
         print(f"[quiz] Generated {len(gemini_questions)} questions")
 
         # 7. Store each question in MongoDB
         quiz_collection = db["quiz_questions"]
         stored_questions = []
 
-        for qa_pair in gemini_questions:
+        for q in gemini_questions:
             question_doc = {
-                "question": qa_pair["question"],
-                "idealAnswer": qa_pair["idealAnswer"],
+                "question": q["question"],
+                "questionType": q.get("questionType", "mcq"),
+                "options": q["options"],
+                "correctAnswer": q["correctAnswer"],
                 "paragraphIds": paragraph_ids,
                 "topic": topic,
+                "quizType": quiz_type,
                 "createdAt": datetime.utcnow(),
             }
             result = quiz_collection.insert_one(question_doc)
             stored_questions.append({
-                "question": qa_pair["question"],
-                "idealAnswer": qa_pair["idealAnswer"],
+                "question": q["question"],
+                "questionType": q.get("questionType", "mcq"),
+                "options": q["options"],
+                "correctAnswer": q["correctAnswer"],
                 "paragraphIds": paragraph_ids,
             })
 
@@ -249,6 +314,131 @@ async def generate_quiz(request: QuizGenerateRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"[quiz] Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# Quiz scoring endpoint
+@app.post("/quiz/score", response_model=QuizScoreResponse)
+async def score_quiz(request: QuizScoreRequest):
+    """
+    Score quiz answers with automatic scoring and Gemini-generated feedback.
+    
+    Flow:
+    1. Auto-score each answer (1 if correct, 0 if wrong)
+    2. Generate feedback for each answer using Gemini
+    3. Return scores and feedback
+    """
+    try:
+        if not request.answers:
+            raise HTTPException(status_code=400, detail="No answers provided")
+        
+        results = []
+        total_score = 0
+        
+        print(f"[score] Scoring {len(request.answers)} answers...")
+        
+        for answer_item in request.answers:
+            # Auto-score: 1 if correct, 0 if wrong
+            is_correct = answer_item.selectedAnswer == answer_item.correctAnswer
+            score = 1 if is_correct else 0
+            total_score += score
+            
+            # Generate feedback using Gemini
+            print(f"[score] Generating feedback for question: {answer_item.questionId}")
+            try:
+                feedback = await generate_quiz_feedback(
+                    question=answer_item.question,
+                    options=answer_item.options,
+                    correct_answer=answer_item.correctAnswer,
+                    user_answer=answer_item.selectedAnswer
+                )
+            except Exception as e:
+                print(f"[score] Error generating feedback: {e}")
+                # Fallback feedback
+                if is_correct:
+                    feedback = "Correct! Well done."
+                else:
+                    correct_option = answer_item.options[answer_item.correctAnswer] if answer_item.correctAnswer < len(answer_item.options) else "N/A"
+                    feedback = f"Incorrect. The correct answer is: {correct_option}"
+            
+            results.append(QuizScoreResult(
+                questionId=answer_item.questionId,
+                score=score,
+                feedback=feedback
+            ))
+        
+        print(f"[score] Scoring complete. Total score: {total_score}/{len(request.answers)}")
+        
+        return QuizScoreResponse(
+            results=results,
+            totalScore=total_score,
+            totalQuestions=len(request.answers)
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[score] Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# Audio quiz scoring endpoint (placeholder structure)
+@app.post("/quiz/score-audio", response_model=AudioQuizScoreResponse)
+async def score_audio_quiz(request: AudioQuizScoreRequest):
+    """
+    Score audio quiz answer using Gemini evaluation and Eleven Labs TTS (placeholder).
+    
+    Flow (to be implemented):
+    1. Use Gemini to evaluate transcribed answer quality
+    2. Generate text feedback
+    3. Use Eleven Labs to convert feedback to audio
+    4. Return score, text feedback, and audio URL
+    """
+    try:
+        if not request.transcribedAnswer or not request.transcribedAnswer.strip():
+            raise HTTPException(status_code=400, detail="Transcribed answer cannot be empty")
+        
+        print(f"[score-audio] Evaluating audio answer for topic: {request.topic}")
+        
+        # Placeholder: Use Gemini to evaluate answer
+        # TODO: Implement evaluate_audio_answer() in gemini.py
+        try:
+            evaluation = await evaluate_audio_answer(
+                question=request.question,
+                transcribed_answer=request.transcribedAnswer,
+                topic=request.topic
+            )
+            score = evaluation.get("score", 0.0)
+            text_feedback = evaluation.get("feedback", "Answer received. Feedback generation pending.")
+        except Exception as e:
+            print(f"[score-audio] Error evaluating answer: {e}")
+            # Fallback
+            score = 0.5
+            text_feedback = "Answer received. Full evaluation pending implementation."
+        
+        # Placeholder: Eleven Labs TTS integration
+        # TODO: Implement in services/elevenlabs.py
+        try:
+            from services.elevenlabs import generate_audio_feedback
+            audio_feedback_url = await generate_audio_feedback(text_feedback)
+        except ImportError:
+            audio_feedback_url = None
+        except Exception as e:
+            print(f"[score-audio] Error generating audio feedback: {e}")
+            audio_feedback_url = None
+        
+        print(f"[score-audio] Evaluation complete. Score: {score}")
+        
+        return AudioQuizScoreResponse(
+            score=score,
+            textFeedback=text_feedback,
+            audioFeedbackUrl=audio_feedback_url
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[score-audio] Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 

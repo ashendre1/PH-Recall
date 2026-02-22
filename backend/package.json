@@ -1,7 +1,7 @@
 {
-  "name": "smartsign-backend",
+  "name": "recall-backend",
   "version": "1.0.0",
-  "description": "Backend server for SmartSign Scraper — receives scraped data, generates embeddings, stores in MongoDB Atlas",
+  "description": "Backend server for Recall — receives scraped data, generates embeddings, stores in MongoDB Atlas",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

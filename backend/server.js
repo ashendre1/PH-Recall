@@ -1,4 +1,4 @@
-// ── SmartSign Backend Server ──────────────────────────
+// ── Recall Backend Server ──────────────────────────
 require("dotenv").config();
 
 const express = require("express");
@@ -135,7 +135,7 @@ async function start() {
   try {
     await connectDB();
     app.listen(PORT, () => {
-      console.log(`\n✓ SmartSign backend running on http://localhost:${PORT}`);
+      console.log(`\n✓ Recall backend running on http://localhost:${PORT}`);
       console.log(`  POST /api/scrape   — receive & store scraped data`);
       console.log(`  GET  /api/documents — list recent documents`);
       console.log(`  POST /api/search   — vector similarity search`);

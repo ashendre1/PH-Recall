@@ -12,7 +12,7 @@ type InlineQuizProps = {
 };
 
 export function InlineQuiz({ payload, messageId, onSubmit }: InlineQuizProps) {
-  const { questions, submittedAnswers, score } = payload;
+  const { questions, submittedAnswers, score, feedback } = payload;
   const evaluated = submittedAnswers !== undefined && score !== undefined;
 
   const [localAnswers, setLocalAnswers] = useState<Record<string, number>>({});
@@ -68,19 +68,26 @@ export function InlineQuiz({ payload, messageId, onSubmit }: InlineQuizProps) {
                   <p className="text-sm text-zinc-500">No options available.</p>
                 )
               ) : (
-                <p className="text-sm">
-                  Your answer:{" "}
-                  <span className="font-medium">{answerText}</span>
-                  {selectedIndex === q.correctAnswer ? (
-                    <span className="text-green-600 dark:text-green-400 ml-2">
-                      Correct
-                    </span>
-                  ) : (
-                    <span className="text-red-600 dark:text-red-400 ml-2">
-                      Incorrect (correct: {correctText})
-                    </span>
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm">
+                    Your answer:{" "}
+                    <span className="font-medium">{answerText}</span>
+                    {selectedIndex === q.correctAnswer ? (
+                      <span className="text-green-600 dark:text-green-400 ml-2">
+                        ✓ Correct
+                      </span>
+                    ) : (
+                      <span className="text-red-600 dark:text-red-400 ml-2">
+                        ✗ Incorrect (correct: {correctText})
+                      </span>
+                    )}
+                  </p>
+                  {feedback && feedback[q.id] && (
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400 italic pl-2 border-l-2 border-zinc-300 dark:border-zinc-600">
+                      {feedback[q.id]}
+                    </p>
                   )}
-                </p>
+                </div>
               )}
             </div>
           );

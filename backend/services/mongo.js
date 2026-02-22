@@ -16,7 +16,7 @@ async function connectDB() {
     throw new Error("MONGO_URI is not set in .env — add your Atlas connection string.");
   }
 
-  const dbName = process.env.MONGO_DB || "smartsign";
+  const dbName = process.env.MONGO_DB || "recall";
 
   console.log(`[mongo] Connecting to Atlas (database: ${dbName})…`);
   client = new MongoClient(uri);

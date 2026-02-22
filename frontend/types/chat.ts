@@ -29,6 +29,8 @@ export type InlineQuizPayload = {
   /** Set after user submits; keys are question ids, values are selected option index (mock: computed on frontend; real: from backend) */
   submittedAnswers?: Record<string, number>;
   score?: number;
+  /** Set after scoring; keys are question ids, values are feedback strings from backend */
+  feedback?: Record<string, string>;
 };
 
 /** Legacy: used by QuizCard (e.g. /practice entry); chat uses inlineQuiz instead */

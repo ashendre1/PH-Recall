@@ -4,110 +4,131 @@ import { useState, useCallback } from "react";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatComposer } from "@/components/chat/ChatComposer";
-import type { Message, Source, InlineQuizQuestion } from "@/types/chat";
-
-const MOCK_SOURCES: Source[] = [
-  { id: "1", title: "Auth0 Docs" },
-  { id: "2", title: "MDN Web Security" },
-];
-
-/** Backend will specify the number of questions; for now we mock with 4. */
-const MOCK_QUIZ_QUESTION_COUNT = 4;
-
-function buildMockQuizQuestions(topic: string): InlineQuizQuestion[] {
-  const base: Array<{ text: string; options: string[]; correctAnswer: number }> = [
-    {
-      text: `What best describes "${topic}" in this context?`,
-      options: ["A quiz topic", "A programming language", "A type of food", "None of these"],
-      correctAnswer: 0,
-    },
-    {
-      text: "Where do you answer the quiz questions?",
-      options: ["On a separate practice page", "In the same chat window", "In an email", "In a PDF"],
-      correctAnswer: 1,
-    },
-    {
-      text: "After submitting, you see:",
-      options: ["Only a pass/fail", "A score and per-question feedback", "No feedback", "A certificate"],
-      correctAnswer: 1,
-    },
-    {
-      text: "How many mock questions are in this quiz?",
-      options: ["Two", "Three", "Four", "Five"],
-      correctAnswer: 2,
-    },
-  ];
-  return base.slice(0, MOCK_QUIZ_QUESTION_COUNT).map((q, i) => ({
-    id: `q-${i + 1}`,
-    text: q.text,
-    type: "mcq" as const,
-    options: q.options,
-    correctAnswer: q.correctAnswer,
-  }));
-}
-
-function createMockReply(userContent: string): Message {
-  const lower = userContent.toLowerCase();
-  const wantsQuiz =
-    lower.includes("quiz") ||
-    lower.includes("practice") ||
-    lower.includes("questions on");
-  const topicMatch = userContent.match(/(?:on|about)\s+([^.?!]+)/i);
-  const topic = topicMatch ? topicMatch[1].trim() : "General";
-
-  const msg: Message = {
-    id: `mock-${Date.now()}`,
-    role: "assistant",
-    content: wantsQuiz
-      ? `Here are ${MOCK_QUIZ_QUESTION_COUNT} multiple choice questions on "${topic}". Answer them below.`
-      : `This is a mock reply (no backend yet). You asked: "${userContent.slice(0, 50)}${userContent.length > 50 ? "…" : ""}". When the backend is connected, answers will be grounded in your saved pages.`,
-    sources: MOCK_SOURCES,
-  };
-
-  if (wantsQuiz) {
-    msg.inlineQuiz = {
-      questions: buildMockQuizQuestions(topic),
-    };
-  }
-
-  return msg;
-}
+import type { Message, Source } from "@/types/chat";
+import { generateQuiz, scoreQuiz } from "@/lib/api";
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSend = useCallback((content: string) => {
+  const handleSend = useCallback(async (content: string) => {
     const userMsg: Message = {
       id: `user-${Date.now()}`,
       role: "user",
       content,
     };
     setMessages((prev) => [...prev, userMsg]);
-    const assistantMsg = createMockReply(content);
-    setMessages((prev) => [...prev, assistantMsg]);
+
+    // Check if user wants a quiz
+    const lower = content.toLowerCase();
+    const wantsQuiz =
+      lower.includes("quiz") ||
+      lower.includes("practice") ||
+      lower.includes("questions on") ||
+      lower.includes("test me");
+
+    if (wantsQuiz) {
+      setIsLoading(true);
+      try {
+        // Extract topic from user message
+        const topicMatch = content.match(/(?:quiz|practice|questions?)\s+(?:on|about|for)\s+([^.?!]+)/i) ||
+                          content.match(/(?:on|about)\s+([^.?!]+)/i);
+        const topic = topicMatch ? topicMatch[1].trim() : content;
+
+        // Call API to generate quiz
+        const result = await generateQuiz(topic, 5);
+
+        const assistantMsg: Message = {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: `Here are ${result.questions.length} multiple choice questions on "${result.topic}". Answer them below.`,
+          sources: result.sources,
+          inlineQuiz: {
+            questions: result.questions,
+          },
+        };
+
+        setMessages((prev) => [...prev, assistantMsg]);
+      } catch (error) {
+        console.error("Error generating quiz:", error);
+        const errorMsg: Message = {
+          id: `error-${Date.now()}`,
+          role: "assistant",
+          content: `Sorry, I couldn't generate a quiz. ${error instanceof Error ? error.message : "Please try again."}`,
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // For non-quiz messages, show a placeholder response
+      const assistantMsg: Message = {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        content: `I can help you generate quiz questions! Try asking: "quiz on [topic]" or "practice questions on [topic]".`,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+    }
   }, []);
 
   const handleQuizSubmit = useCallback(
-    (messageId: string, answers: Record<string, number>) => {
-      setMessages((prev) =>
-        prev.map((m) => {
-          if (m.id !== messageId || !m.inlineQuiz) return m;
-          const { questions } = m.inlineQuiz;
-          const score = questions.filter(
-            (q) => answers[q.id] === q.correctAnswer
-          ).length;
-          return {
-            ...m,
-            inlineQuiz: {
-              ...m.inlineQuiz,
-              submittedAnswers: answers,
-              score,
-            },
-          };
-        })
-      );
+    async (messageId: string, answers: Record<string, number>) => {
+      const message = messages.find((m) => m.id === messageId);
+      if (!message || !message.inlineQuiz) return;
+
+      const { questions } = message.inlineQuiz;
+
+      setIsLoading(true);
+      try {
+        // Call API to score the quiz
+        const result = await scoreQuiz(answers, questions);
+
+        // Update message with scores and feedback
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== messageId || !m.inlineQuiz) return m;
+
+            // Create a map of feedback by question ID
+            const feedbackMap: Record<string, string> = {};
+            result.results.forEach((r) => {
+              feedbackMap[r.questionId] = r.feedback;
+            });
+
+            return {
+              ...m,
+              inlineQuiz: {
+                ...m.inlineQuiz,
+                submittedAnswers: answers,
+                score: result.totalScore,
+                feedback: feedbackMap,
+              },
+            };
+          })
+        );
+      } catch (error) {
+        console.error("Error scoring quiz:", error);
+        // Fallback to local scoring if API fails
+        const score = questions.filter(
+          (q) => answers[q.id] === q.correctAnswer
+        ).length;
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== messageId || !m.inlineQuiz) return m;
+            return {
+              ...m,
+              inlineQuiz: {
+                ...m.inlineQuiz,
+                submittedAnswers: answers,
+                score,
+              },
+            };
+          })
+        );
+      } finally {
+        setIsLoading(false);
+      }
     },
-    []
+    [messages]
   );
 
   return (
@@ -136,7 +157,7 @@ export default function ChatPage() {
               />
             )}
           </div>
-          <ChatComposer onSend={handleSend} />
+          <ChatComposer onSend={handleSend} disabled={isLoading} />
         </div>
       </div>
     </div>
